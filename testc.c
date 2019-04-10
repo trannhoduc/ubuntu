@@ -11,9 +11,7 @@
 #include "MQTTClient.h"
 #define ADDRESS     "m16.cloudmqtt.com:15843"
 #define CLIENTID    "ExampleClientPub"
-#define TOPIC       "Temperature" 
-#define TOPICC       "Humidity" 
-// #define PAYLOAD     "Hello World!"
+#define TOPIC       "projects"
 #define QOS         1
 #define TIMEOUT     10000L
 
@@ -30,8 +28,8 @@ void error(const char *msg)
 void finish_with_error(MYSQL *con)
 {
   fprintf(stderr, "%s\n", mysql_error(con));
-  // mysql_close(con);
-  // exit(1);        
+  mysql_close(con);
+  exit(1);        
 }
 
 
@@ -111,7 +109,7 @@ int main(int argc, char *argv[])
         else if( n>0 ){
             Temp = strtok(buffer, " ");
             Humd = strtok(NULL, " ");
-            printf("\nThe Temp and the Humd is: %s %s\n",Temp, Humd);
+            printf("The Temp and the Humd is: %s %s\n",Temp, Humd);
 
             //update mysql
             // if (mysql_query(con, "INSERT INTO Writers(Name) VALUES(@buffer)"))
@@ -121,18 +119,17 @@ int main(int argc, char *argv[])
 
             char buf[1024] = {};
             char query_string[] = { 
-                "INSERT INTO rpi(Temp, Humd) VALUES('%s','%s')" 
+                "INSERT INTO Writers(Name) VALUES('%s')" 
                 };
 
-            sprintf(buf, query_string, Temp, Humd);
+            sprintf(buf, query_string, buffer);
             if (mysql_query(con,buf)) 
             {
                 finish_with_error(con);
-                continue;
             }
- 
-            pubmsg.payload = Temp;
-            pubmsg.payloadlen = (int)strlen(Temp);
+            
+            pubmsg.payload = buffer;
+            pubmsg.payloadlen = (int)strlen(buffer);
             pubmsg.qos = QOS;
             pubmsg.retained = 0;
 
@@ -145,24 +142,13 @@ int main(int argc, char *argv[])
             rc = MQTTClient_waitForCompletion(client, token, TIMEOUT);
             printf("Message with delivery token %d delivered\n", token);
 
-            pubmsg.payload = Humd;
-            pubmsg.payloadlen = (int)strlen(Humd);
-            pubmsg.qos = QOS;
-            pubmsg.retained = 0;
-
-            MQTTClient_publishMessage(client, TOPICC, &pubmsg, &token);
-
-
             //lam gi do
             fflush(stdout);
             bzero(buffer,BUFFSIZE);
         }
         else{
             printf("Client disconnect !\n");
-            if ((clntSock = accept(servSock, (struct sockaddr *) &cli_addr, &clntLen)) < 0)
-                error("accept() failed");
-            bzero(buffer,BUFFSIZE);
-            
+            break;
         }
 
     }

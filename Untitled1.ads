@@ -4,16 +4,14 @@
 #include <stdlib.h>         /* for atoi() and exit() */
 #include <string.h>         /* for memset() */
 #include <unistd.h>         /* for close() */
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <mysql.h>
 #include <string.h>
 #include "MQTTClient.h"
 #define ADDRESS     "m16.cloudmqtt.com:15843"
 #define CLIENTID    "ExampleClientPub"
-#define TOPIC       "Temperature" 
-#define TOPICC       "Humidity" 
-// #define PAYLOAD     "Hello World!"
+#define TOPIC       "projects"
 #define QOS         1
 #define TIMEOUT     10000L
 
@@ -30,8 +28,8 @@ void error(const char *msg)
 void finish_with_error(MYSQL *con)
 {
   fprintf(stderr, "%s\n", mysql_error(con));
-  // mysql_close(con);
-  // exit(1);        
+  mysql_close(con);
+  exit(1);
 }
 
 
@@ -44,11 +42,11 @@ int main(int argc, char *argv[])
             fprintf(stderr, "mysql_init() failed\n");
             exit(1);
         }
-    if (mysql_real_connect(con, "localhost", "usernho", "nho123", 
-          "testdb", 0, NULL, 0) == NULL) 
+    if (mysql_real_connect(con, "localhost", "usernho", "nho123",
+          "testdb", 0, NULL, 0) == NULL)
         {
             finish_with_error(con);
-        }   
+        }
 
     int servSock, clntSock, n;
     socklen_t clntLen;
@@ -58,7 +56,7 @@ int main(int argc, char *argv[])
     // Create socket for incoming connections
     if ((servSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
         error("ERROR opening socket");
-      
+
     // Construct local address structure
     memset(&serv_addr, 0, sizeof(serv_addr));       /* Zero out structure */
     serv_addr.sin_family = AF_INET;                /* Internet address family */
@@ -69,13 +67,13 @@ int main(int argc, char *argv[])
     if (bind(servSock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
         error("ERROR on binding");
 
-    // Mark the socket so it will listen for incoming connections 
+    // Mark the socket so it will listen for incoming connections
     if (listen(servSock, MAXPENDING) < 0)
         error("ERROR on binding");
 
     // Set the size of the in-out parameter
     clntLen = sizeof(cli_addr);
-    
+
     // Wait for a client to connect
     if ((clntSock = accept(servSock, (struct sockaddr *) &cli_addr, &clntLen)) < 0)
         error("accept() failed");
@@ -83,7 +81,7 @@ int main(int argc, char *argv[])
     bzero(buffer,BUFFSIZE);
 
     //start mqtt publish to cloud
-    // char PAYLOAD[10]; 
+    // char PAYLOAD[10];
     MQTTClient client;
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     MQTTClient_message pubmsg = MQTTClient_message_initializer;
@@ -106,33 +104,32 @@ int main(int argc, char *argv[])
     char *Humd;
     while(1){
         n = recv(clntSock,buffer,BUFFSIZE,0);
-        if ( n<0 ) 
+        if ( n<0 )
             error("ERROR reading from socket");
         else if( n>0 ){
             Temp = strtok(buffer, " ");
             Humd = strtok(NULL, " ");
-            printf("\nThe Temp and the Humd is: %s %s\n",Temp, Humd);
+            printf("The Temp and the Humd is: %s %s\n",Temp, Humd);
 
             //update mysql
             // if (mysql_query(con, "INSERT INTO Writers(Name) VALUES(@buffer)"))
-            // {    
-            //     finish_with_error(con);    
+            // {
+            //     finish_with_error(con);
             // }
 
             char buf[1024] = {};
-            char query_string[] = { 
-                "INSERT INTO rpi(Temp, Humd) VALUES('%s','%s')" 
+            char query_string[] = {
+                "INSERT INTO Writers(Name) VALUES('%s')"
                 };
 
-            sprintf(buf, query_string, Temp, Humd);
-            if (mysql_query(con,buf)) 
+            sprintf(buf, query_string, buffer);
+            if (mysql_query(con,buf))
             {
                 finish_with_error(con);
-                continue;
             }
- 
-            pubmsg.payload = Temp;
-            pubmsg.payloadlen = (int)strlen(Temp);
+
+            pubmsg.payload = buffer;
+            pubmsg.payloadlen = (int)strlen(buffer);
             pubmsg.qos = QOS;
             pubmsg.retained = 0;
 
@@ -145,24 +142,13 @@ int main(int argc, char *argv[])
             rc = MQTTClient_waitForCompletion(client, token, TIMEOUT);
             printf("Message with delivery token %d delivered\n", token);
 
-            pubmsg.payload = Humd;
-            pubmsg.payloadlen = (int)strlen(Humd);
-            pubmsg.qos = QOS;
-            pubmsg.retained = 0;
-
-            MQTTClient_publishMessage(client, TOPICC, &pubmsg, &token);
-
-
             //lam gi do
             fflush(stdout);
             bzero(buffer,BUFFSIZE);
         }
         else{
             printf("Client disconnect !\n");
-            if ((clntSock = accept(servSock, (struct sockaddr *) &cli_addr, &clntLen)) < 0)
-                error("accept() failed");
-            bzero(buffer,BUFFSIZE);
-            
+            break;
         }
 
     }
@@ -172,5 +158,5 @@ int main(int argc, char *argv[])
     mysql_close(con);
     exit(0);
 
-    return 0; 
+    return 0;
 }
