@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="image"/>
+  <qresource prefix="image2">
+    <file>bachkhoa.png</file>
+  </qresource>
+</RCC>
